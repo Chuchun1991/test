@@ -1,0 +1,575 @@
+openapi: 3.1.0
+servers:
+  - url: https://api.agora.io
+security:
+  - BasicAuth: [使用声网提供的客户 ID 和客户密钥生成一个使用 Base64 算法编码的凭证 <customerKey>:<customerSecret>，并在 HTTP 请求头部的 Authorization 字段中填入该凭证。] 
+info:
+  description: |
+    # 概述
+    在阅读本文前，你可以参考以下文档，了解云端录制支持的几大功能，以及各功能涉及的重点步骤。
+    - 单流录制：分开录制每个 UID 的音频和视频。录制服务会实时将 M3U8 和 TS/WebM 文件上传至第三方云存储。如果开启延时转码，录制服务会在录制结束后 24 小时内对录制文件进行转码生成 MP4 文件，并将 MP4 文件上传至你指定的第三方云存储，频道内每个 UID 均会生成一个 MP4 文件。
+    - 合流录制：将频道内所有 UID 的音视频混合录制为一个音视频文件，并将录制文件上传至第三方云存储。
+    - 视频截图：单流录制模式下，对频道内的视频流进行截图，并将图片文件上传至第三方云存储。
+    - 页面录制：将指定网页的页面内容和音频混合录制为一个音视频文件，并将录制文件上传至第三方云存储。
+    # 前提条件
+    请确保已开通云端录制服务。
+    # 实现流程
+    一般进行云端录制的步骤如下：  
+    1. 通过 `acquire` 请求获取一个 resource ID 用于开启云端录制。
+    2. 获取 resource ID 后在 5 分钟内调用 start 开始云端录制。开始录制后，你可以调用 `query` 请求查询云端录制的状态。
+    3. 录制完成后调用 `stop` 停止录制。
+    # 请求结构
+    ## 认证方式
+    云端录制 RESTful API 仅支持 HTTPS 协议。发送请求时，你需要通过 Basic HTTP 认证，并将生成的凭证填入 HTTP 请求头部的 Authorization 字段。具体生成 Authorization 字段的方法请参考 HTTP 基本认证。
+    ## 数据格式
+    所有的请求都发送给域名：`api.agora.io`。
+    - 请求：请求的格式详见各个 API 中的示例。
+    - 响应：响应内容的格式为 JSON。
+  version: 1.0.0
+  title: 云端录制 RESTful API
+tags:
+  - name: RESTful API 参考
+paths:
+  /v1/apps/{appid}/cloud_recording/acquire:
+    parameters:
+      - name: Authorization
+        in: header
+        description: 用于 HTTP 基本认证的 Base64 算法编码的凭证。详见 [HTTP 基本认证](https://docs.agora.io/cn/cloud-recording/faq/restful_authentication)。
+        required: true
+        example: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=
+        schema:
+          type: string
+      - name: Content-Type
+        in: header
+        description: application/json
+        required: true
+        schema:
+          type: string      
+      - name: appid
+        in: path
+        description: 你的项目使用的 App ID。
+        required: true
+        schema:
+          type: string
+    post:
+      summary: 获取云端录制资源
+      tags:
+        - RESTful API 参考
+      description: 在开始云端录制之前，你需要调用 acquire 方法获取一个 resource ID。一个 resource ID 只能用于一次云端录制服务。
+      operationId: Acquirerecording
+      requestBody:
+        $ref: '#/components/requestBodies/Acquire'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceId'
+
+        '400':
+          description: test
+        '404':
+          description: Not found
+      x-codeSamples:
+        - lang: 'Curl'
+          source: |
+           curl --location --request POST 'https://api.agora.io/v1/apps//cloud_recording/acquire' \
+           --header 'Content-Type: application/json' \
+           --header 'Authorization: Basic Ont7Q3VzdG9tZXJTZWNyZXR9fQ==' \
+           --data-raw '{
+             "cname": "",
+             "uid": "",
+             "clientRequest":{
+             }
+           }'
+  '/v1/apps/{appid}/cloud_recording/resourceid/{resourceid}/mode/{mode}/start': 
+    description: 通过 `acquire` 方法获取云端录制资源后，调用 `start` 方法开始云端录制。
+    parameters:
+      - name: Authorization
+        in: header
+        description: 用于 HTTP 基本认证的 Base64 算法编码的凭证。详见 [HTTP 基本认证](https://docs.agora.io/cn/cloud-recording/faq/restful_authentication)。
+        required: true
+        example: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=
+        schema:
+          type: string
+      - name: Content-Type
+        in: header
+        description: application/json
+        required: true
+        schema:
+          type: string      
+      - name: appid
+        in: path
+        description: 你的项目使用的 App ID。
+        required: true
+        schema:
+          type: string
+      - name: resourceid
+        in: path
+        description: 通过 `acquire` 方法获取的 resource ID。
+        required: true
+        schema:
+          type: string
+      - name: mode
+        in: path
+        required: true
+        description: 录制模式。
+          
+          - `individual`：单流录制，分开录制频道内每个 UID 的音频流和视频流，每个 UID 均有其对应的音频文件和视频文件。 
+
+          - `mix`：合流录制，频道内所有 UID 的音视频混合录制为一个音视频文件。 
+
+          - `web`：页面录制，将指定网页的页面内容和音频混合录制为一个音视频文件。
+        schema:
+          type: string
+          default: mix
+    post:
+      summary: 开始云端录制
+      tags:
+        - RESTful API 参考
+      description: 通过 `acquire` 方法获取云端录制资源后，调用 `start` 方法开始云端录制。
+      operationId: Startrecording
+      requestBody:
+        $ref: '#/components/requestBodies/Start'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceId'
+        '400':
+          description: test
+        '404':
+          description: Not found
+      x-codeSamples:
+        - lang: '频道内音视频流录制'
+          source: |
+            curl --location --request POST 'https://api.agora.io/v1/apps/6770a8ea287f4cefa6be347514ad372c/cloud_recording/resourceid/IqCWKgW2CD0KqnZm0lcCzZvPLuJ_DcRipExJtbWHu0BV4VykI9Bv_TOyM-onIoknftI9rMrBg9lKzXb7sJThtm6QCu6tEON4fDJFdtFzWDOq0q3mYMdPfZnMwKyVirP5XMXOrXvE814w5wFugxYS4swvZ7bLH8HoKtXYCZMBGfPoQawehkvq9OFyR_ykBKQIVe8jMqZTaM6phlU_3IizahoB1xlJB2P986Tf8wx_IC-Fb6UjZyVm4-q0UERRmbRSBzbbyQ20n0AhbTFsp7ENXKt5HjQBqRm6lt4CGKnRLA6Qr4Lucah_EceHXx6NRPzNtWCaPCqdGHgER6RIj4Q9m_-3mRZq3pUOqvsZ1DPyw8q0puuUo35LUPUQGv375pR3KA-x4JDDOKOiIBt5YBzER34ELhoDh2M0lWfJze_xvuA/mode/individual/start' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=' \
+            --data-raw '{
+                "uid": "527841",
+                "cname": "httpClient463224",
+                "clientRequest": {
+                    "token": "<token if any>",
+                    "recordingConfig": {
+                        "maxIdleTime": 30,
+                        "streamMode": "default",
+                        "streamTypes": 2,
+                        "channelType": 0,
+                        "transcodingConfig": {
+                            "height": 640,
+                            "width": 360,
+                            "bitrate": 500,
+                            "fps": 15,
+                            "mixedVideoLayout": 1,
+                            "backgroundColor": "#FF0000"
+                        },
+                        "subscribeVideoUids": [
+                            "123",
+                            "456"
+                        ],
+                        "subscribeAudioUids": [
+                            "123",
+                            "456"
+                        ],
+                        "subscribeUidGroup": 0
+                    },
+                    "recordingFileConfig": {
+                        "avFileType": [
+                            "hls"
+                        ]
+                    },
+                    "storageConfig": {
+                        "accessKey": "xxxxxxf",
+                        "region": 3,
+                        "bucket": "xxxxx",
+                        "secretKey": "xxxxx",
+                        "vendor": 2,
+                        "fileNamePrefix": [
+                            "directory1",
+                            "directory2"
+                        ]
+                    }
+                }
+            }' 
+        - lang: '单流音频不转码录制'
+          source: |
+            curl --location --request POST 'https://api.agora.io/v1/apps/6770a8ea287f4cefa6be347514ad372c/cloud_recording/resourceid/IqCWKgW2CD0KqnZm0lcCzZvPLuJ_DcRipExJtbWHu0BV4VykI9Bv_TOyM-onIoknftI9rMrBg9lKzXb7sJThtm6QCu6tEON4fDJFdtFzWDOq0q3mYMdPfZnMwKyVirP5XMXOrXvE814w5wFugxYS4swvZ7bLH8HoKtXYCZMBGfPoQawehkvq9OFyR_ykBKQIVe8jMqZTaM6phlU_3IizahoB1xlJB2P986Tf8wx_IC-Fb6UjZyVm4-q0UERRmbRSBzbbyQ20n0AhbTFsp7ENXKt5HjQBqRm6lt4CGKnRLA6Qr4Lucah_EceHXx6NRPzNtWCaPCqdGHgER6RIj4Q9m_-3mRZq3pUOqvsZ1DPyw8q0puuUo35LUPUQGv375pR3KA-x4JDDOKOiIBt5YBzER34ELhoDh2M0lWfJze_xvuA/mode/individual/start' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=' \
+            --data-raw '{
+                "uid": "527841",
+                "cname": "httpClient463224",
+                "clientRequest": {
+                    "token": "<token if any>",
+                    "recordingConfig": {
+                        "maxIdleTime": 30,
+                        "streamTypes": 0,
+                        "streamMode": "original",
+                        "channelType": 0,
+                        "videoStreamType": 0,
+                        "subscribeAudioUids": ["123","456"],
+                        "subscribeUidGroup": 0
+                    },
+                    "storageConfig": {
+                        "accessKey": "xxxxx",
+                        "region": 3,
+                        "bucket": "xxxxx",
+                        "secretKey": "xxxxx",
+                        "vendor": 2,
+                        "fileNamePrefix": ["directory1","directory2"]
+                   }
+               }
+            }'       
+        - lang: '截图'
+          source: |
+            curl --location --request POST 'https://api.agora.io/v1/apps/6770a8ea287f4cefa6be347514ad372c/cloud_recording/resourceid/IqCWKgW2CD0KqnZm0lcCzZvPLuJ_DcRipExJtbWHu0BV4VykI9Bv_TOyM-onIoknftI9rMrBg9lKzXb7sJThtm6QCu6tEON4fDJFdtFzWDOq0q3mYMdPfZnMwKyVirP5XMXOrXvE814w5wFugxYS4swvZ7bLH8HoKtXYCZMBGfPoQawehkvq9OFyR_ykBKQIVe8jMqZTaM6phlU_3IizahoB1xlJB2P986Tf8wx_IC-Fb6UjZyVm4-q0UERRmbRSBzbbyQ20n0AhbTFsp7ENXKt5HjQBqRm6lt4CGKnRLA6Qr4Lucah_EceHXx6NRPzNtWCaPCqdGHgER6RIj4Q9m_-3mRZq3pUOqvsZ1DPyw8q0puuUo35LUPUQGv375pR3KA-x4JDDOKOiIBt5YBzER34ELhoDh2M0lWfJze_xvuA/mode/individual/start' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=' \
+            --data-raw '{
+                "uid": "527841",
+                "cname": "httpClient463224",
+                "clientRequest": {
+                    "token": "<token if any>",
+                    "recordingConfig": {
+                        "maxIdleTime": 30,
+                        "streamTypes": 2,
+                        "channelType": 0,
+                        "subscribeUidGroup": 0
+                    },
+                    "snapshotConfig": {
+                        "captureInterval": 5,
+                        "fileType": [
+                            "jpg"
+                        ]
+                    },
+                    "storageConfig": {
+                        "accessKey": "xxxxxxf",
+                        "region": 3,
+                        "bucket": "xxxxx",
+                        "secretKey": "xxxxx",
+                        "vendor": 2,
+                        "fileNamePrefix": [
+                            "directory1",
+                            "directory2"
+                        ]
+                    }
+                }
+            }' 
+        - lang: '截图并录制'
+          source: |
+            curl --location --request POST 'https://api.agora.io/v1/apps/6770a8ea287f4cefa6be347514ad372c/cloud_recording/resourceid/IqCWKgW2CD0KqnZm0lcCzZvPLuJ_DcRipExJtbWHu0BV4VykI9Bv_TOyM-onIoknftI9rMrBg9lKzXb7sJThtm6QCu6tEON4fDJFdtFzWDOq0q3mYMdPfZnMwKyVirP5XMXOrXvE814w5wFugxYS4swvZ7bLH8HoKtXYCZMBGfPoQawehkvq9OFyR_ykBKQIVe8jMqZTaM6phlU_3IizahoB1xlJB2P986Tf8wx_IC-Fb6UjZyVm4-q0UERRmbRSBzbbyQ20n0AhbTFsp7ENXKt5HjQBqRm6lt4CGKnRLA6Qr4Lucah_EceHXx6NRPzNtWCaPCqdGHgER6RIj4Q9m_-3mRZq3pUOqvsZ1DPyw8q0puuUo35LUPUQGv375pR3KA-x4JDDOKOiIBt5YBzER34ELhoDh2M0lWfJze_xvuA/mode/individual/start' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic OTBkOGIyM2EwZTllNDBkM2JjYmIxZjJmNzU2OGMyYzM6NzQ5ZDFjMmQxZmFhNGYxZmJkYmIyMTZiZjQ5ODJmZmQ=' \
+            --data-raw '{
+                "uid": "527841",
+                "cname": "httpClient463224",
+                "clientRequest": {
+                    "token": "<token if any>",
+                    "recordingConfig": {
+                        "maxIdleTime": 30,
+                        "streamTypes": 1,
+                        "channelType": 0
+                    },
+                    "snapshotConfig": {
+                        "captureInterval": 5,
+                        "fileType": [
+                            "jpg"
+                        ]
+                    },
+                    "recordingFileConfig": {
+                        "avFileType": [
+                            "hls"
+                        ]
+                    },
+                    "storageConfig": {
+                        "accessKey": "xxxxxxf",
+                        "region": 3,
+                        "bucket": "xxxxx",
+                        "secretKey": "xxxxx",
+                        "vendor": 2,
+                        "fileNamePrefix": [
+                            "directory1",
+                            "directory2"
+                        ]
+                    }
+                }
+            }'                      
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+  schemas:
+    ClientRequest:
+      description: 特定的客户请求参数。
+      type: object
+      properties:
+        region:
+          description: 用于限定云端录制服务访问的区域。一旦指定了访问区域，云端录制服务将不会访问指定区域以外的服务器。调用 start 方法时第三方云存储的 region 必须必须与该参数一致。
+          type: string
+          enum:
+            - CN
+            - AP
+            - EU
+            - NA
+        resourceExpiredHour:
+          description: | 
+           用于设置云端录制 RESTful API 的调用时效，从成功开启云端录制并获得 sid （录制 ID）后开始计算。单位小时。
+
+           注意：超时后，你将无法调用 `query`，`update`，`updateLayout` 和 stop 方法。
+          type: number
+          maximum: 720
+          minimum: 1
+          default: 72
+        scene:
+          description: |
+          
+           云端录制资源使用场景。
+            
+            - `0`：实时音视频录制或延时混音：
+              | Scene     | Description                                                  | 
+              | ---------------- | ------------------------------------------------------------ | 
+              | 实时音视频录制  | 录制服务会在录制结束后将录制文件在 20 分钟内（特殊情况会到 24 小时以上）上传至你指定的第三方云存储。 | 
+              | 延时混音  | 录制服务会在录制结束后 24 小时内（特殊情况下会到 48 小时以上）将指定频道内所有 UID 的录制文件合并并转码生成一个 MP3/M4A/AAC 文件，并将文件上传至你指定的第三方云存储（不支持七牛云）。该场景仅适用于音频单流不转码录制模式。 | 
+               
+            - `1`：页面录制。
+            
+            - `2`：延时转码。设置该场景后，录制服务会在录制后 24 小时内（特殊情况下会到 48 小时以上）对录制文件进行转码生成 MP4 文件，并将 MP4 文件上传至你指定的第三方云存储（不支持七牛云）。该场景仅适用于单流录制模式。你需要同时在 start 方法中设置 appsCollection 参数。
+          default: 0
+          type: number
+    ClientRequest1:
+      description: 特定的客户请求参数。
+      type: object
+      properties:
+        token:
+          description: 用于鉴权的动态密钥。如果你的项目已启用 App 证书，则务必在该参数中传入你项目的动态密钥。详见[使用 Token 鉴权](https://docs.agora.io/cn/cloud-recording/token_server?platform=All%20Platforms)。
+          type: string
+        appsCollection:
+          $ref: '#/components/schemas/AppsCollection'
+          schema: 
+            required: true
+            type: object
+        recordingConfig:
+          $ref: '#/components/schemas/RecordingConfig'
+          schema: 
+            required: true
+            type: object
+        storageConfig:
+          $ref: '#/components/schemas/StorageConfig'
+          schema: 
+            required: true
+            type: object
+        extensionServiceConfig:
+          $ref: '#/components/schemas/ExtensionServiceConfig'
+          schema: 
+            required: true
+            type: object                            
+    ResourceId:
+      type: object
+      properties:
+        resourceId:
+          type: string
+          description: 云端录制资源 resource ID，使用这个 resource ID 可以开始一段云端录制。这个 resource ID 的有效期为 5 分钟，超时需要重新请求。
+          example: 'JyvK8nXHuV1BE64GDkAaBGEscvtHW7v8BrQoRPCHxmeVxwY22-x-kv4GdPcjZeMzoCBUCOr9q-k6wBWMC7SaAkZ_4nO3JLqYwM1bL1n6wKnnD9EC9waxJboci9KUz2WZ4YJrmcJmA7xWkzs_L3AnNwdtcI1kr_u1cWFmi9BWAWAlNd7S7gfoGuH0tGi6CNaOomvr7-ILjPXdCYwgty1hwT6tbAuaW1eqR0kOYTO0Z1SobpBxu1czSFh1Gbz*****'
+    Cname:
+      type: string
+      maxLength: 128
+      description: 频道名称。
+    
+        - 对于非页面录制，该参数用于设置待录制的频道名
+
+        - 对于页面录制，该参数用于区分录制进程。通过 `appid`, `cname` 以及 `uid` 可以定位一个唯一的录制实例。如果你想多次录制同一个页面，可以使用相同的 `cname` 和不同的 `uid` 来进行组织和区分。
+    Uid:
+      description: 频道名称。取值范围为 1 到 (2^32-1)。
+    
+        - 不能与当前频道内的任何 UID 重复。
+
+        - 云端录制不支持 String 用户 ID（User Account），请确保该字段引号内为整型 UID，且频道内所有用户均使用整型 UID。
+      type: string 
+      minLength: 1  
+    AppsCollection:
+      description: 用于设置云端录制应用。
+      properties:
+        combinationPolicy: 
+          description: 各个云端录制应用的组合方式。
+            
+            - `default`：除延时转码和延时混音外，均选用此种方式。
+            
+            - `postpone_transcoding`：如需延时转码或延时混音，则选用此种方式。
+          type: string
+    RecordingConfig:
+      description: 录制设置。用于设置媒体流订阅，云端录制会根据此设置订阅频道内的媒体流，并生成录制文件或截图。
+      properties:
+        channelType: 
+          description: 频道场景。频道场景必须与声网 RTC SDK 的设置一致，否则可能导致问题。
+            
+            - `0`：通信场景
+            
+            - `1`：直播场景
+          type: number    
+          default: 0   
+        streamMode: 
+          description: 单流录制模式下（`mode` 为 `individual`），媒体流的输出模式。
+            
+            - `default`：默认模式。录制过程中音频转码，分别生成 M3U8 音频索引文件和视频索引文件。
+            
+            - `standard`：标准模式。声网推荐使用该模式。录制过程中音频转码，分别生成 M3U8 音频索引文件、视频索引文件和合并的音视频索引文件。如果在 Web 端使用 VP8 编码，则生成一个合并的 MPD 音视频索引文件。
+
+            - `original`：原始编码模式。适用于单流音频不转码录制。仅订阅音频时（streamTypes 为 0）时该参数生效，录制过程中音频不转码，生成 M3U8 音频索引文件。
+          
+          type: string
+    StorageConfig:
+      description: 第三方云存储设置。
+      type: object
+      required:
+        - vendor
+        - region      
+      discriminator:
+        propertyName: vendor
+        mapping:
+          1(AmazonS3): '#/components/schemas/Amazon' 
+          2(Ali): '#/components/schemas/Ali'
+      properties:
+        vendor:
+          description: 第三方云存储平台。
+          type: number
+        region:
+          description: 第三方云存储指定的地区信息。
+          type: number
+    ExtensionServiceConfig:
+      description: 扩展服务设置。扩展服务是基于声网 RTC SDK 的一系列应用服务，能够对声网 RTC SDK 中产生的音视频流进行进一步处理，如页面录制、视频点播服务、智能语音审核服务。
+      properties:
+        errorHandlePolicy: 
+          description: 错误处理策略。目前仅可设置为 `error_abort`，表示当某一扩展服务发生错误后，订阅及其他非扩展服务均停止。
+          type: string    
+          default: error_abort
+        apiVersion: 
+          description: 云端录制 RESTful API 的版本号。
+          type: string    
+          default: v1
+        extensionServices: 
+          description: 由每个扩展服务的设置组成的数组。根据你需要使用的扩展服务的不同。
+          type: object
+          properties:
+            页面录制:
+              $ref: '#/components/schemas/Web'
+            页面录制并推流到 CDN: 
+              $ref: '#/components/schemas/WebCDN'
+    Web:
+      description: 页面录制服务。
+      required: 
+        - url
+      properties:
+        serviceName: 
+          description: 扩展服务的名称。要进行页面录制，你需要将其设置为 "web_recorder_service"。
+          type: string    
+        errorHandlePolicy: 
+          description: 错误处理策略。目前仅可设置为默认值，表示如果当前扩展服务发生错误，其他扩展服务均停止。
+          type: string    
+          default: error_abort
+        serviceParam: 
+          description: 页面录制服务的具体参数设置。
+          type: object
+          properties:
+            url:
+              description: 设置待录制页面的地址。
+              type: string              
+            videoBitrate: 
+              description: 输出视频的码率，单位为 kbps，针对不同的输出视频分辨率，默认值不同：
+                
+                - 输出视频分辨率大于或等于 1280 × 720：默认值为 2000
+
+                - 输出视频分辨率小于 1280 × 720：默认值为 1500
+              type: number
+              minimum: 50
+              maximum: 8000
+    WebCDN:
+      description: 你需要同时设置页面录制和推流到 CDN 相关参数。
+      required: 
+        - rtmpUrl
+      properties:
+        serviceName: 
+          description: 扩展服务的名称。如果要进行页面录制并推流到 CDN，你需要将其设置为 "rtmp_publish_service"。
+          type: string    
+        errorHandlePolicy: 
+          description: 错误处理策略。目前仅可设置为默认值，表示如果当前扩展服务发生错误，其他扩展服务均停止。
+          type: string    
+          default: error_abort
+        serviceParam: 
+          description: 页面录制服务的具体参数设置。
+          type: object
+          properties:
+            rtmpUrl:
+              description: CDN 推流地址。
+              type: string             
+    Ali:
+      description: Ali
+      allOf:
+        - $ref: '#/components/schemas/StorageConfig'
+        - type: object
+          properties:
+            region:
+              enum:
+                - 0: CN_Hangzhou
+                - 1: CN_Shanghai
+                - 2: CN_Qingdao
+                - 3: CN_Beijing
+                - 4: CN_Zhangjiakou
+          required:
+            - region  
+    Amazon:
+      description: Amazon
+      allOf:
+        - $ref: '#/components/schemas/StorageConfig'
+        - type: object
+          properties:
+            region:
+              enum:
+                - 0: US_EAST_1
+                - 1: US_EAST_2
+                - 2: US_WEST_1
+                - 3: US_WEST_2
+                - 4: EU_WEST_1
+          required:
+            - region                                  
+  requestBodies:
+    Acquire:
+      content:
+        application/json:
+          schema:
+            description: Acquire
+            title: Acquire
+            properties:
+              cname:
+                $ref: '#/components/schemas/Cname'
+                schema: 
+                  required: true
+              uid:
+                $ref: '#/components/schemas/Uid'
+                schema: 
+                  required: true
+              clientRequest:
+                $ref: '#/components/schemas/ClientRequest'                          
+      description: 该 API 需要在请求包体中传入以下参数：
+    Start:
+      content:
+        application/json:
+          schema:
+            description: Start
+            title: Start
+            properties:
+              cname:
+                $ref: '#/components/schemas/Cname'
+                schema: 
+                  required: true
+              uid:
+                $ref: '#/components/schemas/Uid'
+                schema: 
+                  required: true
+              clientRequest:
+                $ref: '#/components/schemas/ClientRequest1'                          
+      description: 该 API 需要在请求包体中传入以下参数：
